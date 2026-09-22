@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<style>
+:root{
+  --blue:#007AFF; --red:#FF3B30; --green:#34C759; --gray:#8E8E93;
+  --bg:#F2F2F7; --card:#FFFFFF; --text:#1C1C1E; --sep:#E5E5EA;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0; padding:0; height:100%; background:var(--bg);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",Roboto,Helvetica,Arial,sans-serif;
+  color:var(--text); overscroll-behavior:none;}
+.navbar{position:sticky; top:0; z-index:10; display:flex; align-items:center; justify-content:space-between;
+  padding:calc(env(safe-area-inset-top,0px) + 14px) 16px 14px; background:rgba(242,242,247,0.85);
+  backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-bottom:1px solid var(--sep);}
+.navbar h1{font-size:20px; font-weight:700; margin:0;}
+.nav-btn{background:none; border:none; color:var(--blue); font-size:16px; font-weight:600; padding:6px 4px;}
+.container{padding:16px; max-width:480px; margin:0 auto; padding-bottom:60px;}
+.card{background:var(--card); border-radius:14px; padding:16px; margin-bottom:14px; box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+label{display:block; font-size:13px; color:var(--gray); margin-bottom:6px; font-weight:600; text-transform:uppercase; letter-spacing:0.3px;}
+input[type=text]{width:100%; border:none; background:var(--bg); border-radius:10px; padding:14px; font-size:17px;
+  margin-bottom:14px; color:var(--text);}
+input[type=text]:focus{outline:2px solid var(--blue);}
+.btn{width:100%; border:none; border-radius:12px; padding:15px; font-size:17px; font-weight:600; cursor:pointer;
+  transition:transform .1s ease, opacity .1s ease, background-color .15s ease;
+  display:flex; align-items:center; justify-content:center; gap:8px;}
+.btn:active{transform:scale(0.97); opacity:0.85;}
+.btn:disabled{opacity:0.7; transform:none;}
+.btn-primary{background:var(--blue); color:#fff;}
+.btn-primary.ok{background:var(--green);}
+.btn-secondary{background:var(--bg); color:var(--blue);}
+.btn-danger{background:var(--red); color:#fff;}
+.spinner{width:16px; height:16px; border:2px solid rgba(255,255,255,0.4); border-top-color:#fff;
+  border-radius:50%; animation:spin .6s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+.row-item{display:flex; align-items:center; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--sep);}
+.row-item:last-child{border-bottom:none;}
+.row-info .nombre{font-size:16px; font-weight:600;}
+.row-info .cantidad{font-size:14px; color:var(--gray); margin-top:2px;}
+.row-actions{display:flex; gap:8px;}
+.icon-btn{width:36px; height:36px; border-radius:10px; border:none; background:var(--bg); font-size:16px;
+  display:flex; align-items:center; justify-content:center;}
+.icon-btn.edit{color:var(--blue);}
+.icon-btn.del{color:var(--red);}
+.icon-btn:disabled{opacity:0.5;}
+.hidden{display:none !important;}
+.empty{text-align:center; color:var(--gray); padding:40px 10px; font-size:15px;}
+.overlay{position:fixed; inset:0; background:rgba(0,0,0,0.4); display:flex; align-items:flex-end;
+  justify-content:center; z-index:100;}
+.sheet{background:var(--card); width:100%; max-width:480px; border-radius:20px 20px 0 0; padding:20px;
+  padding-bottom:calc(env(safe-area-inset-bottom,0px) + 20px); animation:up .2s ease;}
+@keyframes up{from{transform:translateY(100%)} to{transform:translateY(0)}}
+.sheet h3{margin:0 0 4px; font-size:17px;}
+.sheet p{margin:0 0 16px; color:var(--gray); font-size:14px;}
+.sheet .btn{margin-bottom:10px;}
+.toast{position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(10px); background:#1C1C1E; color:#fff;
+  padding:10px 18px; border-radius:20px; font-size:14px; z-index:200; opacity:0; transition:opacity .2s, transform .2s;
+  display:flex; align-items:center; gap:6px; white-space:nowrap;}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0);}
+.toast.err{background:var(--red);}
+.skeleton{background:linear-gradient(90deg,#eee 25%,#f5f5f5 37%,#eee 63%); background-size:400% 100%;
+  animation:shimmer 1.4s infinite; border-radius:8px; height:44px; margin-bottom:8px;}
+@keyframes shimmer{0%{background-position:100% 0} 100%{background-position:0 0}}
+</style>
+</head>
+<body>
+
+<div class="navbar">
+  <h1>Inventario</h1>
+  <button class="nav-btn" id="btnResumen" onclick="abrirResumen()">Resumen</button>
+</div>
+
+<!-- VISTA PRINCIPAL -->
+<div class="container" id="view-main">
+  <div class="card">
+    <label>Nombre del producto</label>
+    <input type="text" id="inNombre" placeholder="Ej. Camisa azul" autocomplete="off" autocapitalize="words">
+    <label>Cantidad</label>
+    <input type="text" id="inCantidad" inputmode="numeric" pattern="[0-9]*" placeholder="0" autocomplete="off">
+    <button class="btn btn-primary" id="btnGuardar" onclick="guardar()">Guardar</button>
+  </div>
+</div>
+
+<!-- VISTA RESUMEN -->
+<div class="container hidden" id="view-summary">
+  <div class="card" style="padding:6px 16px;">
+    <div id="listaProductos"></div>
+    <div class="empty hidden" id="emptyMsg">Aún no hay productos registrados</div>
+  </div>
+</div>
+
+<!-- MODAL: producto ya existe -->
+<div class="overlay hidden" id="modalExiste">
+  <div class="sheet">
+    <h3>Este producto ya existe</h3>
+    <p id="msgExiste"></p>
+    <button class="btn btn-primary" id="btnSuma" onclick="resolverSuma()">Sumar cantidad al existente</button>
+    <button class="btn btn-secondary" id="btnNuevo" onclick="resolverNuevo()">Agregar como nuevo</button>
+    <button class="btn btn-secondary" onclick="cerrarModalExiste()" style="color:var(--gray)">Cancelar</button>
+  </div>
+</div>
+
+<!-- MODAL: editar -->
+<div class="overlay hidden" id="modalEditar">
+  <div class="sheet">
+    <h3>Editar producto</h3>
+    <label style="margin-top:10px;">Nombre</label>
+    <input type="text" id="editNombre">
+    <label>Cantidad</label>
+    <input type="text" id="editCantidad" inputmode="numeric" pattern="[0-9]*">
+    <button class="btn btn-primary" id="btnGuardarEdicion" onclick="guardarEdicion()">Guardar cambios</button>
+    <button class="btn btn-danger" id="btnEliminarModal" onclick="eliminarDesdeModal()">Eliminar producto</button>
+    <button class="btn btn-secondary" onclick="cerrarModalEditar()" style="color:var(--gray)">Cancelar</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// Cache local de productos: permite validar duplicados y pintar la lista
+// SIN esperar al servidor -> el guardado se siente instantáneo.
+let productosCache = null;
+let pendiente = null;
+let editandoRow = null;
+
+function toast(msg, isErr){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (isErr ? ' err' : '');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 1800);
+}
+
+function onError(mensaje){
+  return function(err){
+    console.error(err);
+    toast(mensaje || 'Ocurrió un error, intenta de nuevo', true);
+    cargarListaSilenciosa(); // resincroniza por si algo quedó desfasado
+  };
+}
+
+function setBtnState(id, state, label){
+  const b = document.getElementById(id);
+  if(!b) return;
+  b.disabled = (state === 'loading');
+  b.classList.remove('ok');
+  if(state === 'loading'){
+    b.innerHTML = '<span class="spinner"></span>';
+  } else if(state === 'ok'){
+    b.classList.add('ok');
+    b.innerHTML = '✓ ' + label;
+  } else {
+    b.innerHTML = label;
+  }
+}
+
+function soloNumeros(input){
+  input.value = input.value.replace(/[^0-9]/g,'');
+}
+document.getElementById('inCantidad').addEventListener('input', function(){ soloNumeros(this); });
+document.getElementById('editCantidad').addEventListener('input', function(){ soloNumeros(this); });
+
+document.getElementById('inNombre').addEventListener('keydown', function(e){
+  if(e.key === 'Enter'){ e.preventDefault(); document.getElementById('inCantidad').focus(); }
+});
+document.getElementById('inCantidad').addEventListener('keydown', function(e){
+  if(e.key === 'Enter'){ e.preventDefault(); guardar(); }
+});
+
+window.addEventListener('load', function(){
+  document.getElementById('inNombre').focus();
+  // Precarga silenciosa en segundo plano para que el primer guardado también sea instantáneo
+  cargarListaSilenciosa();
+});
+
+function cargarListaSilenciosa(){
+  google.script.run
+    .withSuccessHandler(function(productos){ productosCache = productos; })
+    .withFailureHandler(function(err){ console.error(err); })
+    .getProducts();
+}
+
+function abrirResumen(){
+  document.getElementById('view-main').classList.add('hidden');
+  document.getElementById('view-summary').classList.remove('hidden');
+  document.getElementById('btnResumen').textContent = 'Nuevo';
+  document.getElementById('btnResumen').setAttribute('onclick','cerrarResumen()');
+  if(productosCache){ pintarLista(productosCache); } else { mostrarSkeleton(); }
+  google.script.run.withSuccessHandler(function(p){ productosCache = p; pintarLista(p); })
+    .withFailureHandler(onError('No se pudo cargar la lista')).getProducts();
+}
+function cerrarResumen(){
+  document.getElementById('view-summary').classList.add('hidden');
+  document.getElementById('view-main').classList.remove('hidden');
+  document.getElementById('btnResumen').textContent = 'Resumen';
+  document.getElementById('btnResumen').setAttribute('onclick','abrirResumen()');
+  document.getElementById('inNombre').focus();
+}
+
+function mostrarSkeleton(){
+  const cont = document.getElementById('listaProductos');
+  document.getElementById('emptyMsg').classList.add('hidden');
+  cont.innerHTML = '<div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>';
+}
+
+function pintarLista(productos){
+  const cont = document.getElementById('listaProductos');
+  const empty = document.getElementById('emptyMsg');
+  cont.innerHTML = '';
+  if(!productos || productos.length === 0){
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  productos.forEach(p=>{
+    const div = document.createElement('div');
+    div.className = 'row-item';
+    div.innerHTML = `
+      <div class="row-info">
+        <div class="nombre">${escapeHtml(p.nombre)}</div>
+        <div class="cantidad">Cantidad: ${p.cantidad}</div>
+      </div>
+      <div class="row-actions">
+        <button class="icon-btn edit" onclick="abrirEdicion(${p.row}, '${escapeAttr(p.nombre)}', ${p.cantidad})">✏️</button>
+        <button class="icon-btn del" onclick="confirmarEliminar(${p.row}, this)">🗑️</button>
+      </div>`;
+    cont.appendChild(div);
+  });
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escapeAttr(s){ return String(s).replace(/'/g, "\\'"); }
+
+// ---- GUARDAR (optimista: no espera al servidor para confirmar en pantalla) ----
+function guardar(){
+  const nombre = document.getElementById('inNombre').value.trim();
+  const cantidad = document.getElementById('inCantidad').value.trim();
+  if(!nombre){ toast('Escribe un nombre', true); return; }
+  if(!cantidad){ toast('Escribe una cantidad', true); return; }
+
+  if(productosCache === null){
+    // Rarísimo: la precarga aún no llegó. Único caso que espera al servidor.
+    setBtnState('btnGuardar', 'loading');
+    google.script.run.withSuccessHandler(function(existente){
+      setBtnState('btnGuardar', 'idle', 'Guardar');
+      productosCache = productosCache || [];
+      if(existente){ mostrarModalDuplicado(existente, nombre, cantidad); }
+      else { confirmarGuardadoInstantaneo(nombre, cantidad); }
+    }).withFailureHandler(onError('No se pudo guardar')).findProduct(nombre);
+    return;
+  }
+
+  const existenteLocal = productosCache.find(p => String(p.nombre).trim().toLowerCase() === nombre.toLowerCase());
+  if(existenteLocal){
+    mostrarModalDuplicado(existenteLocal, nombre, cantidad);
+    return;
+  }
+  confirmarGuardadoInstantaneo(nombre, cantidad);
+}
+
+function mostrarModalDuplicado(existente, nombre, cantidad){
+  pendiente = { row: existente.row, nombreNuevo: nombre, cantidadNueva: cantidad };
+  document.getElementById('msgExiste').textContent =
+    `"${existente.nombre}" ya tiene ${existente.cantidad} unidades registradas.`;
+  document.getElementById('modalExiste').classList.remove('hidden');
+}
+
+function confirmarGuardadoInstantaneo(nombre, cantidad){
+  // 1) Feedback y limpieza inmediatos (percepción de velocidad)
+  setBtnState('btnGuardar', 'ok', 'Guardado');
+  toast('Producto guardado ✓');
+  limpiarForm();
+  setTimeout(()=>setBtnState('btnGuardar', 'idle', 'Guardar'), 500);
+
+  // 2) Cache local se actualiza al toque, la hoja se sincroniza en paralelo
+  const tempEntry = { row: -1, nombre: nombre, cantidad: Number(cantidad) };
+  productosCache = [tempEntry, ...productosCache];
+
+  google.script.run
+    .withSuccessHandler(function(productos){ productosCache = productos; })
+    .withFailureHandler(function(err){
+      productosCache = productosCache.filter(p => p !== tempEntry);
+      onError('No se pudo guardar en la hoja, revisa tu conexión')(err);
+    })
+    .addProduct(nombre, cantidad);
+}
+
+function limpiarForm(){
+  document.getElementById('inNombre').value = '';
+  document.getElementById('inCantidad').value = '';
+  document.getElementById('inNombre').focus();
+}
+
+function resolverSuma(){
+  if(!pendiente) return;
+  const p = pendiente;
+  setBtnState('btnSuma', 'ok', 'Sumado');
+  toast('Cantidad sumada ✓');
+  productosCache = productosCache.map(x => x.row === p.row
+    ? { ...x, cantidad: Number(x.cantidad) + Number(p.cantidadNueva) } : x);
+  cerrarModalExiste();
+  limpiarForm();
+
+  google.script.run
+    .withSuccessHandler(function(productos){ productosCache = productos; })
+    .withFailureHandler(onError('No se pudo sumar en la hoja'))
+    .sumToProduct(p.row, p.cantidadNueva);
+}
+function resolverNuevo(){
+  if(!pendiente) return;
+  const p = pendiente;
+  setBtnState('btnNuevo', 'ok', 'Agregado');
+  toast('Producto agregado ✓');
+  const tempEntry = { row: -1, nombre: p.nombreNuevo, cantidad: Number(p.cantidadNueva) };
+  productosCache = [tempEntry, ...productosCache];
+  cerrarModalExiste();
+  limpiarForm();
+
+  google.script.run
+    .withSuccessHandler(function(productos){ productosCache = productos; })
+    .withFailureHandler(onError('No se pudo agregar en la hoja'))
+    .addProduct(p.nombreNuevo, p.cantidadNueva);
+}
+function cerrarModalExiste(){
+  document.getElementById('modalExiste').classList.add('hidden');
+  pendiente = null;
+  setBtnState('btnSuma', 'idle', 'Sumar cantidad al existente');
+  setBtnState('btnNuevo', 'idle', 'Agregar como nuevo');
+}
+
+// ---- EDITAR / ELIMINAR (también optimistas) ----
+function abrirEdicion(row, nombre, cantidad){
+  editandoRow = row;
+  document.getElementById('editNombre').value = nombre;
+  document.getElementById('editCantidad').value = cantidad;
+  document.getElementById('modalEditar').classList.remove('hidden');
+}
+function cerrarModalEditar(){
+  document.getElementById('modalEditar').classList.add('hidden');
+  editandoRow = null;
+  setBtnState('btnGuardarEdicion', 'idle', 'Guardar cambios');
+  setBtnState('btnEliminarModal', 'idle', 'Eliminar producto');
+}
+function guardarEdicion(){
+  const row = editandoRow;
+  const nombre = document.getElementById('editNombre').value.trim();
+  const cantidad = document.getElementById('editCantidad').value.trim();
+  if(!nombre || !cantidad){ toast('Completa ambos campos', true); return; }
+
+  setBtnState('btnGuardarEdicion', 'ok', 'Guardado');
+  toast('Cambios guardados ✓');
+  productosCache = productosCache.map(x => x.row === row ? { ...x, nombre: nombre, cantidad: Number(cantidad) } : x);
+  pintarLista(productosCache);
+  cerrarModalEditar();
+
+  google.script.run
+    .withSuccessHandler(function(productos){ productosCache = productos; })
+    .withFailureHandler(onError('No se pudo guardar la edición en la hoja'))
+    .updateProduct(row, nombre, cantidad);
+}
+function eliminarDesdeModal(){
+  const row = editandoRow;
+  if(!row) return;
+  toast('Producto eliminado ✓');
+  productosCache = productosCache.filter(x => x.row !== row);
+  pintarLista(productosCache);
+  cerrarModalEditar();
+
+  google.script.run
+    .withSuccessHandler(function(productos){ productosCache = productos; })
+    .withFailureHandler(onError('No se pudo eliminar en la hoja'))
+    .deleteProduct(row);
+}
+function confirmarEliminar(row, btnEl){
+  if(!confirm('¿Eliminar este producto?')) return;
+  toast('Producto eliminado ✓');
+  productosCache = productosCache.filter(x => x.row !== row);
+  pintarLista(productosCache);
+
+  google.script.run
+    .withSuccessHandler(function(productos){ productosCache = productos; })
+    .withFailureHandler(onError('No se pudo eliminar en la hoja'))
+    .deleteProduct(row);
+}
+</script>
+</body>
+</html>
